@@ -6,6 +6,9 @@
 *.xltx
 *.xltm
 
+# Project documents
+project docs/
+
 # Python cache
 __pycache__/
 *.py[cod]

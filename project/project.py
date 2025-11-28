@@ -1,45 +1,66 @@
+"""
+Script to fetch and process UNIDO Compass project data for managers.
+"""
+
 import requests
 import json
 import pandas as pd
 import re
 from openpyxl.utils import get_column_letter
+from typing import Optional, Tuple, List, Dict, Any
+from pathlib import Path
 
-def get_manager_projects(manager_id):
+# Constants
+API_BASE_URL = "https://compass.unido.org/api/v1"
+DEFAULT_MANAGER_IDS = [6820, 45014, 13416, 146624, 6316, 170987]
+MANAGER_ID_FILE = '../manager/manager id.xlsx'
+SHEET_NAME = 'Sheet1'
+MAX_COLUMN_WIDTH = 50
+REQUEST_TIMEOUT = 30
+
+
+def get_manager_projects(manager_id: int) -> Optional[Dict[str, Any]]:
     """
     Fetch all projects under a manager from the UNIDO Compass API.
     
     Args:
-        manager_id (int): The manager ID to fetch projects for
+        manager_id: The manager ID to fetch projects for
     
     Returns:
-        dict: JSON response containing the projects
+        JSON response containing the projects, or None if failed
     """
-    url = f"https://compass.unido.org/api/v1/managers/{manager_id}/projects"
+    url = f"{API_BASE_URL}/managers/{manager_id}/projects"
     
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
         return response.json()
+    except requests.exceptions.Timeout:
+        print(f"Error: Request timed out for manager {manager_id}")
+        return None
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error fetching data for manager {manager_id}: {e}")
         return None
 
-def get_project_details(project_id):
+def get_project_details(project_id: int) -> Optional[Dict[str, Any]]:
     """
     Fetch detailed information for a specific project from the UNIDO Compass API.
     
     Args:
-        project_id (int): The project ID to fetch details for
+        project_id: The project ID to fetch details for
     
     Returns:
-        dict: Project details including focus_area, description, donors_json, supplier_json, partners_json
+        Project details including focus_area, description, donors_json, etc., or None if failed
     """
-    url = f"https://compass.unido.org/api/v1/projects/{project_id}"
+    url = f"{API_BASE_URL}/projects/{project_id}"
     
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
+    except requests.exceptions.Timeout:
+        print(f"Error: Request timed out for project {project_id}")
+        return None
     except requests.exceptions.RequestException as e:
         print(f"Error fetching project {project_id} details: {e}")
         return None
@@ -197,6 +218,19 @@ def process_manager_projects(manager_id):
         # Create enhanced project record
         enhanced_project = project.copy()
         
+        # Extract project details with defaults
+        default_details = {
+            'focus_area': '',
+            'description': '',
+            'donors_json': '',
+            'donor_count': 0,
+            'supplier_json': '',
+            'supplier_count': 0,
+            'partners_json': '',
+            'all_countries_json': '',
+            'recipient_country_count': 0
+        }
+        
         if project_details and "body" in project_details:
             body = project_details["body"]
             # The data is a list with one element containing the project details
@@ -208,34 +242,20 @@ def process_manager_projects(manager_id):
                 # Extract readable names from JSON arrays
                 donors_data = details.get('donors_json', [])
                 supplier_data = details.get('supplier_json', [])
+                countries_data = details.get('all_countries_json', [])
+                partners_data = details.get('partners_json', [])
+                
                 enhanced_project['donors_json'] = extract_donor_names(donors_data)
                 enhanced_project['donor_count'] = count_donors(donors_data)
                 enhanced_project['supplier_json'] = extract_supplier_names(supplier_data)
                 enhanced_project['supplier_count'] = count_suppliers(supplier_data)
-                enhanced_project['partners_json'] = extract_partner_names(details.get('partners_json', []))
-                countries_data = details.get('all_countries_json', [])
+                enhanced_project['partners_json'] = extract_partner_names(partners_data)
                 enhanced_project['all_countries_json'] = extract_country_names(countries_data)
                 enhanced_project['recipient_country_count'] = count_countries(countries_data)
             else:
-                enhanced_project['focus_area'] = ''
-                enhanced_project['description'] = ''
-                enhanced_project['donors_json'] = ''
-                enhanced_project['donor_count'] = 0
-                enhanced_project['supplier_json'] = ''
-                enhanced_project['supplier_count'] = 0
-                enhanced_project['partners_json'] = ''
-                enhanced_project['all_countries_json'] = ''
-                enhanced_project['recipient_country_count'] = 0
+                enhanced_project.update(default_details)
         else:
-            enhanced_project['focus_area'] = ''
-            enhanced_project['description'] = ''
-            enhanced_project['donors_json'] = ''
-            enhanced_project['donor_count'] = 0
-            enhanced_project['supplier_json'] = ''
-            enhanced_project['supplier_count'] = 0
-            enhanced_project['partners_json'] = ''
-            enhanced_project['all_countries_json'] = ''
-            enhanced_project['recipient_country_count'] = 0
+            enhanced_project.update(default_details)
         
         enhanced_projects.append(enhanced_project)
     
@@ -375,13 +395,32 @@ def generate_donor_statistics(all_projects_df):
     
     return stats_df
 
-def export_to_excel(manager_data_list, excel_filename):
+def adjust_column_widths(worksheet, df: pd.DataFrame) -> None:
+    """
+    Auto-adjust column widths for an Excel worksheet.
+    
+    Args:
+        worksheet: OpenPyXL worksheet object
+        df: DataFrame with columns to adjust
+    """
+    for idx, col in enumerate(df.columns, 1):
+        max_length = max(
+            df[col].astype(str).map(len).max(),
+            len(str(col))
+        )
+        adjusted_width = min(max_length + 2, MAX_COLUMN_WIDTH)
+        column_letter = get_column_letter(idx)
+        worksheet.column_dimensions[column_letter].width = adjusted_width
+
+
+def export_to_excel(manager_data_list: List[Tuple[int, pd.DataFrame, str, str]], 
+                    excel_filename: str) -> None:
     """
     Export multiple managers' projects to an Excel file with a single combined sheet.
     
     Args:
-        manager_data_list (list): List of tuples (manager_id, DataFrame, manager_name, first_name)
-        excel_filename (str): Name of the Excel file to create
+        manager_data_list: List of tuples (manager_id, DataFrame, manager_name, first_name)
+        excel_filename: Name of the Excel file to create
     """
     with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
         all_projects_list = []  # Collect all projects for the combined sheet
@@ -416,16 +455,8 @@ def export_to_excel(manager_data_list, excel_filename):
             all_projects_df.to_excel(writer, sheet_name='Sheet1', index=False)
             
             # Auto-adjust column widths
-            worksheet = writer.sheets['Sheet1']
-            for idx, col in enumerate(all_projects_df.columns, 1):
-                max_length = max(
-                    all_projects_df[col].astype(str).map(len).max(),
-                    len(str(col))
-                )
-                # Limit max width to 50 for readability
-                adjusted_width = min(max_length + 2, 50)
-                column_letter = get_column_letter(idx)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
+            worksheet = writer.sheets[SHEET_NAME]
+            adjust_column_widths(worksheet, all_projects_df)
             
             print(f"  ✓ Sheet 'Sheet1' created with {len(all_projects_df)} rows (all projects combined)")
             
@@ -436,14 +467,7 @@ def export_to_excel(manager_data_list, excel_filename):
                 
                 # Auto-adjust column widths for statistics sheet
                 worksheet_stats = writer.sheets['statistics_recipient']
-                for idx, col in enumerate(stats_recipient_df.columns, 1):
-                    max_length = max(
-                        stats_recipient_df[col].astype(str).map(len).max(),
-                        len(str(col))
-                    )
-                    adjusted_width = min(max_length + 2, 50)
-                    column_letter = get_column_letter(idx)
-                    worksheet_stats.column_dimensions[column_letter].width = adjusted_width
+                adjust_column_widths(worksheet_stats, stats_recipient_df)
                 
                 print(f"  ✓ Sheet 'statistics_recipient' created with {len(stats_recipient_df)} countries")
             else:
@@ -456,46 +480,49 @@ def export_to_excel(manager_data_list, excel_filename):
                 
                 # Auto-adjust column widths for statistics sheet
                 worksheet_stats_donor = writer.sheets['statistics_donor']
-                for idx, col in enumerate(stats_donor_df.columns, 1):
-                    max_length = max(
-                        stats_donor_df[col].astype(str).map(len).max(),
-                        len(str(col))
-                    )
-                    adjusted_width = min(max_length + 2, 50)
-                    column_letter = get_column_letter(idx)
-                    worksheet_stats_donor.column_dimensions[column_letter].width = adjusted_width
+                adjust_column_widths(worksheet_stats_donor, stats_donor_df)
                 
                 print(f"  ✓ Sheet 'statistics_donor' created with {len(stats_donor_df)} donors")
             else:
                 print(f"  ⚠ No donor statistics generated (no donor data found)")
 
-if __name__ == "__main__":
-    # Read manager IDs from Excel file
-    manager_id_file = 'manager id.xlsx'
+def load_manager_ids(filename: str = MANAGER_ID_FILE) -> List[int]:
+    """
+    Load manager IDs from Excel file or return defaults.
     
+    Args:
+        filename: Path to Excel file containing manager IDs
+    
+    Returns:
+        List of manager IDs
+    """
     try:
-        # Try to read manager IDs from the Excel file
-        manager_df = pd.read_excel(manager_id_file, sheet_name='Sheet1')
+        manager_df = pd.read_excel(filename, sheet_name=SHEET_NAME)
         
         if 'manager_id' in manager_df.columns:
-            # Extract manager IDs, filter out NaN/empty values, and convert to int
             manager_ids = manager_df['manager_id'].dropna().astype(int).unique().tolist()
             manager_ids = sorted(manager_ids)
-            print(f"Loaded {len(manager_ids)} manager ID(s) from '{manager_id_file}'")
+            print(f"Loaded {len(manager_ids)} manager ID(s) from '{filename}'")
+            return manager_ids
         else:
-            print(f"Warning: 'manager_id' column not found in '{manager_id_file}'")
+            print(f"Warning: 'manager_id' column not found in '{filename}'")
             print(f"Available columns: {list(manager_df.columns)}")
             print("Using default manager IDs.")
-            manager_ids = [6820, 45014, 13416, 146624, 6316, 170987]
+            return DEFAULT_MANAGER_IDS
             
     except FileNotFoundError:
-        print(f"Warning: File '{manager_id_file}' not found.")
+        print(f"Warning: File '{filename}' not found.")
         print("Using default manager IDs.")
-        manager_ids = [6820, 45014, 13416, 146624, 6316, 170987]
+        return DEFAULT_MANAGER_IDS
     except Exception as e:
-        print(f"Error reading '{manager_id_file}': {e}")
+        print(f"Error reading '{filename}': {e}")
         print("Using default manager IDs.")
-        manager_ids = [6820, 45014, 13416, 146624, 6316, 170987]
+        return DEFAULT_MANAGER_IDS
+
+
+if __name__ == "__main__":
+    # Read manager IDs from Excel file
+    manager_ids = load_manager_ids()
     
     if not manager_ids:
         print("Error: No manager IDs found. Exiting.")
@@ -519,10 +546,13 @@ if __name__ == "__main__":
         exit(1)
     
     # Export to Excel
+    output_dir = Path('.')
+    output_dir.mkdir(exist_ok=True)
+    
     if len(manager_ids) == 1:
-        excel_filename = f"manager_{manager_ids[0]}_projects.xlsx"
+        excel_filename = str(output_dir / f"manager_{manager_ids[0]}_projects.xlsx")
     else:
-        excel_filename = "managers_projects.xlsx"
+        excel_filename = str(output_dir / "managers_projects.xlsx")
     
     print(f"\n{'=' * 60}")
     print(f"Exporting to Excel: {excel_filename}")

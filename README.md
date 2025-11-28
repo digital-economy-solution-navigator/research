@@ -8,8 +8,7 @@ Research repository: https://github.com/digital-economy-solution-navigator/resea
 
 ## Scripts
 
-- `extract_manager_ids.py` - Extract unique manager IDs from Excel files
-- `project.py` - Fetch and process project data from UNIDO Compass API
-- `download_pdf.py` - Download PDF files
-- `json_to_excel.py` - Convert JSON data to Excel format
+- `manager/extract_manager_ids.py` - Extract unique manager IDs from Excel files
+- `project/project.py` - Fetch and process project data from UNIDO Compass API
+- `docs/download.py` - Download PDF files
 

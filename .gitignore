@@ -8,6 +8,7 @@
 
 # Project documents
 project docs/
+text/
 
 # Python cache
 __pycache__/

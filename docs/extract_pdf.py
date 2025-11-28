@@ -4,8 +4,14 @@ For normal PDFs: extracts structured text directly.
 For scanned PDFs: moves them to a "scanned" folder.
 
 Configuration:
-    DEFAULT_PDF_FOLDER: Set the default folder to process PDFs from.
-                        You can still override by providing a path as argument.
+    FOLDER_SOURCE: Set to "local" or "cloud" to switch between folder locations.
+                   - "local": uses "project docs" folder
+                   - "cloud": uses cloud folder paths (constructed from CLOUD_BASE_PATH)
+    CLOUD_BASE_PATH: Base path for cloud folders (only used when FOLDER_SOURCE = "cloud")
+                     PDFs: {CLOUD_BASE_PATH}/prodocs
+                     Text: {CLOUD_BASE_PATH}/text
+                     Scanned: {CLOUD_BASE_PATH}/prodocs/scanned
+    You can still override by providing a path as command-line argument.
 """
 
 import sys
@@ -21,7 +27,19 @@ except ImportError:
     PDFPLUMBER_AVAILABLE = False
 
 # Configuration
-DEFAULT_PDF_FOLDER = "project docs"  # Default folder to process PDFs from
+FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
+
+# Cloud base path (only used when FOLDER_SOURCE = "cloud")
+CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive\文档\cursor\projects\docs"  # Base path for cloud folders
+
+# Folder paths based on FOLDER_SOURCE
+if FOLDER_SOURCE == "cloud":
+    # Construct paths from base path
+    DEFAULT_PDF_FOLDER = str(Path(CLOUD_BASE_PATH) / "project docs")
+    DEFAULT_TEXT_FOLDER = str(Path(CLOUD_BASE_PATH) / "text")
+else:  # local
+    DEFAULT_PDF_FOLDER = "project docs"
+    DEFAULT_TEXT_FOLDER = None  # Will use script_dir / "text" for local
 
 # Global list to track scanned PDFs (store full paths)
 SCANNED_PDFS: List[Path] = []
@@ -327,7 +345,11 @@ def process_pdf(pdf_path: str, output_dir: Optional[str] = None, save_text: bool
         if not text_dir.is_absolute():
             text_dir = script_dir / text_dir
     else:
-        text_dir = script_dir / "text"
+        # Use cloud text folder if configured, otherwise use local text folder
+        if FOLDER_SOURCE == "cloud" and DEFAULT_TEXT_FOLDER:
+            text_dir = Path(DEFAULT_TEXT_FOLDER)
+        else:
+            text_dir = script_dir / "text"
     
     # Check if extracted text file already exists
     text_output_path = text_dir / f"{pdf_file.stem}.txt"
@@ -396,14 +418,17 @@ def process_pdf(pdf_path: str, output_dir: Optional[str] = None, save_text: bool
         # Get script directory for default paths
         script_dir = Path(__file__).parent.absolute()
         
-        # Default output_dir is docs/text (relative to script)
+        # Determine text folder location
         if output_dir:
             text_dir = Path(output_dir)
             if not text_dir.is_absolute():
                 text_dir = script_dir / text_dir
         else:
-            # Default to text folder in script directory (docs/text)
-            text_dir = script_dir / "text"
+            # Use cloud text folder if configured, otherwise use local text folder
+            if FOLDER_SOURCE == "cloud" and DEFAULT_TEXT_FOLDER:
+                text_dir = Path(DEFAULT_TEXT_FOLDER)
+            else:
+                text_dir = script_dir / "text"
         
         # Save extracted text to text folder
         text_output_path = text_dir / f"{pdf_file.stem}.txt"
@@ -421,7 +446,12 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 2:
         # Default: process all PDFs in the configured folder
-        input_path = script_dir / DEFAULT_PDF_FOLDER
+        default_folder = Path(DEFAULT_PDF_FOLDER)
+        if default_folder.is_absolute():
+            input_path = default_folder
+        else:
+            input_path = script_dir / default_folder
+        
         if not input_path.exists():
             print(f"Error: Default folder not found: {input_path}")
             print(f"Please update DEFAULT_PDF_FOLDER in the script or provide a folder path as argument")

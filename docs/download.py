@@ -1,6 +1,12 @@
 """
 Script to download project documents from UNIDO Compass.
 Analyzes document names and URLs to identify the most likely project document for each project.
+
+Configuration:
+    FOLDER_SOURCE: Set to "local" or "cloud" to switch between folder locations.
+                   - "local": downloads to "project docs" folder (relative to script)
+                   - "cloud": downloads to {CLOUD_BASE_PATH}/project docs
+    CLOUD_BASE_PATH: Base path for cloud folders (only used when FOLDER_SOURCE = "cloud")
 """
 
 import requests
@@ -12,12 +18,24 @@ from typing import Optional, Dict, List, Tuple
 from urllib.parse import urlparse
 from collections import Counter
 
+# Configuration
+FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
+
+# Cloud base path (only used when FOLDER_SOURCE = "cloud")
+CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\research"  # Base path for cloud folders
+
 # Constants
 CHUNK_SIZE = 8192
 KB_SIZE = 1024
 REQUEST_TIMEOUT = 30
 EXCEL_FILE = 'project_documents.xlsx'
-OUTPUT_DIR = 'project docs'
+
+# Output directory based on FOLDER_SOURCE
+if FOLDER_SOURCE == "cloud":
+    # Construct path from base path
+    OUTPUT_DIR = str(Path(CLOUD_BASE_PATH) / "project docs")
+else:  # local
+    OUTPUT_DIR = "project docs"
 
 
 def extract_filename_from_url(url: str) -> str:
@@ -236,6 +254,40 @@ def select_best_document(project_docs: pd.DataFrame, keyword_scores: Dict[str, i
     return best_doc
 
 
+def project_file_exists(project_id: str, output_path: Path) -> Optional[Path]:
+    """
+    Check if any file with the project ID already exists in the output folder or scanned folder.
+    
+    Args:
+        project_id: Project ID to search for
+        output_path: Directory to search in
+    
+    Returns:
+        Path to existing file if found, None otherwise
+    """
+    if not output_path.exists():
+        return None
+    
+    # Look for any file that starts with the project_id
+    pattern = f"{project_id}_*"
+    
+    # Check in the main output folder
+    matching_files = list(output_path.glob(pattern))
+    if matching_files:
+        # Return the first matching file
+        return matching_files[0]
+    
+    # Also check in the scanned folder
+    scanned_folder = output_path / "scanned"
+    if scanned_folder.exists():
+        matching_files = list(scanned_folder.glob(pattern))
+        if matching_files:
+            # Return the first matching file from scanned folder
+            return matching_files[0]
+    
+    return None
+
+
 def download_file(url: str, filepath: Path) -> bool:
     """
     Download a file from a URL and save it.
@@ -374,17 +426,18 @@ def process_project_documents(excel_file: str = EXCEL_FILE) -> None:
             if filename_from_url and filename_from_url != 'download.pdf':
                 doc_name = filename_from_url
         
+        # Check if any file with this project ID already exists
+        existing_file = project_file_exists(str(project_id), output_path)
+        if existing_file:
+            print(f"  ⊙ Already exists: {existing_file.name} (project {project_id})")
+            skipped_count += 1
+            continue
+        
         # Create final filename: {project_id}_{document_name}.pdf
         # Remove extension if present and add .pdf
         doc_name_base = os.path.splitext(doc_name)[0]
         filename = f"{project_id}_{sanitize_filename(doc_name_base)}.pdf"
         filepath = output_path / filename
-        
-        # Skip if already downloaded
-        if filepath.exists():
-            print(f"  ⊙ Already exists: {filename}")
-            skipped_count += 1
-            continue
         
         # Download
         print(f"  Downloading: {url[:80]}...")

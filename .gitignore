@@ -10,6 +10,10 @@
 project docs/
 docs/text/
 text/
+# Exception: Allow Python files in docs/text/ folder
+!docs/text/
+!docs/text/*.py
+docs/text/*.txt
 
 # Python cache
 __pycache__/

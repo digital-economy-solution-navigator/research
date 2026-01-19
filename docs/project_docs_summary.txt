@@ -4,8 +4,8 @@ PROJECT DOCUMENT SUMMARY
 1. Expected project docs (from managers_projects.xlsx where doc='yes'): 1927
 
 2. Project documents found in cloud path:
-   - Root folder (project docs): 1604 projects
-   - Scanned folder: 345 projects
+   - Root folder (project docs): 1596 projects
+   - Scanned folder: 353 projects
    - Total unique projects with documents: 1949
 
 3. Missing project docs: 1

@@ -364,6 +364,107 @@ def extract_brief_description(content):
             if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
                 return cleaned
     
+    # ==========================================================================
+    # PATTERN GROUP 14: Short description field (PRODOC format)
+    # ==========================================================================
+    
+    short_desc_patterns = [
+        # "The overall objective" paragraph (common in PRODOC header tables)
+        r'Total\s+budget[^\n]*\n(The\s+overall\s+objective[\s\S]*?)(?=\n\s*(?:\d+\s*\n\s*Project|\n\s*Contents|[A-Z]\.\s+[A-Z]))',
+        # "Short description" field in project header
+        r'Short\s+description\s*\n?([\s\S]*?)(?=\n\s*(?:Contents|Table\s+of|[A-Z]\.\s+[A-Z]|\d+\s*\n\s*Project))',
+        # Alternative: Short description followed by section
+        r'Short\s+description\s*[:\n]\s*([\s\S]*?)(?=\n\s*(?:[A-Z]\.\s+[A-Z]|Contents|Background))',
+    ]
+    
+    for pattern in short_desc_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            # Clean up table formatting artifacts like "Short description" in the middle
+            text = re.sub(r'\n\s*Short\s+description\s*\n', '\n', text, flags=re.IGNORECASE)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 50 and len(cleaned) < 5000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 15: Project Purpose / A1. Project Purpose (PRODOC format)
+    # ==========================================================================
+    
+    project_purpose_patterns = [
+        # "A1. Project Purpose" or "A.1 Project Purpose"
+        r'A\.?\s*1\.?\s*Project\s+Purpose\s*\n([\s\S]*?)(?=\n\s*(?:A\.?\s*2|Figure\s+\d|The\s+project\s+will|The\s+main\s+rationale))',
+        # "Project Purpose" standalone
+        r'\n\s*Project\s+Purpose\s*\n([\s\S]*?)(?=\n\s*(?:[A-Z]\.?\s*\d|Figure|Table|The\s+project))',
+    ]
+    
+    for pattern in project_purpose_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 16: PROJECT DESCRIPTION section (ExCom project proposals)
+    # ==========================================================================
+    
+    project_desc_patterns = [
+        # "PROJECT DESCRIPTION" followed by "Background"
+        r'PROJECT\s+DESCRIPTION\s*\n\s*(?:Background\s*\n)?([\s\S]*?)(?=\n\s*(?:SECRETARIAT|PROJECT\s+EVALUATION|[A-Z]+\s+COSTS|\d+\.\s+On\s+behalf))',
+        # Generic PROJECT DESCRIPTION
+        r'PROJECT\s+DESCRIPTION\s*\n([\s\S]*?)(?=\n\s*(?:[A-Z]{2,}\s+[A-Z]|Table\s+\d|\d+\s*\n\s*[A-Z]))',
+    ]
+    
+    for pattern in project_desc_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 15000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 17: Work Programme / Work Plan intro (internal documents)
+    # ==========================================================================
+    
+    work_plan_patterns = [
+        # "A. Work Programme and Budget" section with intro paragraph
+        r'A\.\s*Work\s+Programme\s+and\s+Budget[^\n]*\n([\s\S]*?)(?=\n\s*(?:This\s+work\s+plan|B\.\s+Planned|The\s+GS\s+inter))',
+        # Work Programme intro paragraph after title - capture "Advancing gender equality..." type intros
+        r'(?:2020\s*[-–]\s*2023|Implementation[^\n]*)\s*\n\s*A\.\s*Work\s+Programme[^\n]*\n(Advancing[\s\S]*?)(?=\n\s*(?:This\s+work\s+programme|The\s+GS))',
+        # Generic work plan intro - paragraphs starting with organizational description
+        r'Work\s+Programme\s+and\s+Budget[^\n]*\n(?:\d{4}[^\n]*\n)?(?:for[^\n]*\n)?([\s\S]*?)(?=\n\s*(?:This\s+work\s+programme|B\.\s+|Table\s+of|Contents))',
+    ]
+    
+    for pattern in work_plan_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 5000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 18: A. INTRODUCTION section (evaluation/audit work plans)
+    # ==========================================================================
+    
+    intro_section_patterns = [
+        # "A. INTRODUCTION" with numbered paragraphs
+        r'A\.\s*INTRODUCTION\s*\n([\s\S]*?)(?=\n\s*B\.\s+[A-Z])',
+        # Generic lettered Introduction section
+        r'[A-Z]\.\s*INTRODUCTION\s*\n([\s\S]*?)(?=\n\s*[A-Z]\.\s+[A-Z])',
+    ]
+    
+    for pattern in intro_section_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
+                return cleaned
+    
     return None
 
 

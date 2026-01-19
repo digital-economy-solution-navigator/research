@@ -1,12 +1,12 @@
 ALL PROJECT IDs WITH NULL VALUES
 ======================================================================
 
-Total: 673
+Total: 658
 
 Breakdown:
-  - Missing brief_description only: 80
-  - Missing challenges_problem_statements only: 369
-  - Missing both: 224
+  - Missing brief_description only: 65
+  - Missing challenges_problem_statements only: 397
+  - Missing both: 196
 
 ======================================================================
 COMPLETE LIST (sorted):
@@ -427,7 +427,6 @@ COMPLETE LIST (sorted):
 180337
 180339
 180341
-180342
 180343
 180344
 180345
@@ -461,7 +460,6 @@ COMPLETE LIST (sorted):
 190198
 190205
 190206
-190207
 190213
 190219
 190222
@@ -473,7 +471,6 @@ COMPLETE LIST (sorted):
 190290
 190298
 190300
-190304
 190325
 190326
 190341
@@ -499,16 +496,12 @@ COMPLETE LIST (sorted):
 200050
 200051
 200052
-200062
 200069
-200077
 200080
-200086
 200110
 200120
 200145
 200158
-200174
 200176
 200177
 200198
@@ -534,7 +527,6 @@ COMPLETE LIST (sorted):
 210041
 210048
 210071
-210082
 210091
 210101
 210132
@@ -563,13 +555,9 @@ COMPLETE LIST (sorted):
 210281
 210283
 210284
-210285
 220003
 220004
 220031
-220033
-220044
-220056
 220061
 220069
 220070
@@ -621,10 +609,8 @@ COMPLETE LIST (sorted):
 230257
 230261
 230267
-230271
 230272
 230303
-230304
 230307
 230310
 230311
@@ -645,7 +631,6 @@ COMPLETE LIST (sorted):
 240023
 240028
 240044
-240048
 240069
 240087
 240088

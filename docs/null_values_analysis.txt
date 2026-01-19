@@ -5,15 +5,15 @@ Total documents: 1596
 
 SUMMARY
 ----------------------------------------------------------------------
-Missing brief_description only: 80
-Missing challenges_problem_statements only: 369
-Missing both: 224
+Missing brief_description only: 65
+Missing challenges_problem_statements only: 397
+Missing both: 196
 
-Total with null brief_description: 304
+Total with null brief_description: 261
 Total with null challenges_problem_statements: 593
 
 
-1. Missing brief_description only (80 projects):
+1. Missing brief_description only (65 projects):
 ----------------------------------------------------------------------
 109000
 120212
@@ -56,47 +56,32 @@ Total with null challenges_problem_statements: 593
 180250
 180295
 180336
-180342
 190027
 190145
 190156
 190180
-190207
 190213
 190230
 190284
 190289
-190304
 190341
 190377
 190409
 200051
 200052
-200062
-200077
-200086
 200158
-200174
 200198
 200325
-210082
 210183
 210198
-210285
-220033
-220044
-220056
 220085
 220185
 220209
 230171
 230214
-230271
-230304
-240048
 240104
 
-2. Missing challenges_problem_statements only (369 projects):
+2. Missing challenges_problem_statements only (397 projects):
 ----------------------------------------------------------------------
 100117
 100260
@@ -115,6 +100,7 @@ Total with null challenges_problem_statements: 593
 105005
 105016
 105020
+105026
 105044
 105046
 105058
@@ -155,6 +141,7 @@ Total with null challenges_problem_statements: 593
 105353
 105354
 105357
+105358
 105365
 105366
 105367
@@ -201,6 +188,7 @@ Total with null challenges_problem_statements: 593
 120491
 120511
 120516
+120537
 120580
 120582
 120587
@@ -253,6 +241,9 @@ Total with null challenges_problem_statements: 593
 140357
 140358
 140359
+140361
+140366
+140390
 140393
 140400
 150038
@@ -332,6 +323,7 @@ Total with null challenges_problem_statements: 593
 180171
 180173
 180207
+180224
 180225
 180226
 180246
@@ -345,8 +337,14 @@ Total with null challenges_problem_statements: 593
 180288
 180335
 180337
+180339
 180341
+180343
 180344
+180346
+180347
+180349
+180351
 180352
 180353
 180354
@@ -368,14 +366,17 @@ Total with null challenges_problem_statements: 593
 190275
 190290
 190298
+190300
 190326
 190362
 190375
 190379
 190384
 190389
+190399
 190405
 190406
+190412
 200028
 200038
 200049
@@ -396,6 +397,7 @@ Total with null challenges_problem_statements: 593
 200328
 210026
 210048
+210071
 210091
 210132
 210175
@@ -428,6 +430,8 @@ Total with null challenges_problem_statements: 593
 220239
 220240
 220241
+220242
+230037
 230040
 230062
 230079
@@ -435,6 +439,7 @@ Total with null challenges_problem_statements: 593
 230209
 230226
 230228
+230232
 230257
 230261
 230267
@@ -449,8 +454,12 @@ Total with null challenges_problem_statements: 593
 230330
 230346
 230347
+230351
 230353
 240001
+240023
+240044
+240069
 240087
 240088
 240144
@@ -463,12 +472,16 @@ Total with null challenges_problem_statements: 593
 240381
 240382
 240405
+240406
 240425
+250046
+250201
 250209
 250212
+250227
 250228
 
-3. Missing both (224 projects):
+3. Missing both (196 projects):
 ----------------------------------------------------------------------
 100128
 100272
@@ -481,7 +494,6 @@ Total with null challenges_problem_statements: 593
 102053
 103002
 104007
-105026
 105066
 105077
 105094
@@ -497,7 +509,6 @@ Total with null challenges_problem_statements: 593
 105306
 105340
 105343
-105358
 105375
 105380
 105386
@@ -535,7 +546,6 @@ Total with null challenges_problem_statements: 593
 120508
 120512
 120522
-120537
 120552
 120574
 120625
@@ -559,14 +569,11 @@ Total with null challenges_problem_statements: 593
 140192
 140201
 140353
-140361
 140365
-140366
 140369
 140370
 140381
 140383
-140390
 140401
 150066
 150073
@@ -593,28 +600,18 @@ Total with null challenges_problem_statements: 593
 180123
 180125
 180166
-180224
 180261
 180293
-180339
-180343
 180345
-180346
-180347
 180348
-180349
-180351
 190035
 190036
 190173
 190205
 190206
 190222
-190300
 190325
-190399
 190401
-190412
 190413
 200016
 200029
@@ -630,7 +627,6 @@ Total with null challenges_problem_statements: 593
 200329
 200330
 210041
-210071
 210101
 210188
 210189
@@ -652,9 +648,7 @@ Total with null challenges_problem_statements: 593
 220196
 220225
 220231
-220242
 230007
-230037
 230053
 230054
 230078
@@ -663,17 +657,12 @@ Total with null challenges_problem_statements: 593
 230188
 230216
 230224
-230232
 230303
 230307
 230310
 230322
 230342
-230351
-240023
 240028
-240044
-240069
 240089
 240146
 240178
@@ -685,18 +674,14 @@ Total with null challenges_problem_statements: 593
 240362
 240364
 240376
-240406
 240413
 240414
 240415
-250046
 250088
-250201
 250216
-250227
 
 
-4. ALL PROJECT IDs WITH NULL VALUES (Total: 673):
+4. ALL PROJECT IDs WITH NULL VALUES (Total: 658):
 ----------------------------------------------------------------------
 100117
 100128
@@ -1114,7 +1099,6 @@ Total with null challenges_problem_statements: 593
 180337
 180339
 180341
-180342
 180343
 180344
 180345
@@ -1148,7 +1132,6 @@ Total with null challenges_problem_statements: 593
 190198
 190205
 190206
-190207
 190213
 190219
 190222
@@ -1160,7 +1143,6 @@ Total with null challenges_problem_statements: 593
 190290
 190298
 190300
-190304
 190325
 190326
 190341
@@ -1186,16 +1168,12 @@ Total with null challenges_problem_statements: 593
 200050
 200051
 200052
-200062
 200069
-200077
 200080
-200086
 200110
 200120
 200145
 200158
-200174
 200176
 200177
 200198
@@ -1221,7 +1199,6 @@ Total with null challenges_problem_statements: 593
 210041
 210048
 210071
-210082
 210091
 210101
 210132
@@ -1250,13 +1227,9 @@ Total with null challenges_problem_statements: 593
 210281
 210283
 210284
-210285
 220003
 220004
 220031
-220033
-220044
-220056
 220061
 220069
 220070
@@ -1308,10 +1281,8 @@ Total with null challenges_problem_statements: 593
 230257
 230261
 230267
-230271
 230272
 230303
-230304
 230307
 230310
 230311
@@ -1332,7 +1303,6 @@ Total with null challenges_problem_statements: 593
 240023
 240028
 240044
-240048
 240069
 240087
 240088

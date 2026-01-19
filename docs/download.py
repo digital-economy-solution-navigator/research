@@ -3,10 +3,9 @@ Script to download project documents from UNIDO Compass.
 Analyzes document names and URLs to identify the most likely project document for each project.
 
 Configuration:
-    FOLDER_SOURCE: Set to "local" or "cloud" to switch between folder locations.
-                   - "local": downloads to "project docs" folder (relative to script)
-                   - "cloud": downloads to {CLOUD_BASE_PATH}/project docs
-    CLOUD_BASE_PATH: Base path for cloud folders (only used when FOLDER_SOURCE = "cloud")
+    See config.py for FOLDER_SOURCE and CLOUD_BASE_PATH settings.
+    - "local": downloads to "project docs" folder (relative to script)
+    - "cloud": downloads to {CLOUD_BASE_PATH}/project docs
 """
 
 import requests
@@ -17,12 +16,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from urllib.parse import urlparse
 from collections import Counter
-
-# Configuration
-FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
-
-# Cloud base path (only used when FOLDER_SOURCE = "cloud")
-CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\1. Expertise\research"  # Base path for cloud folders
+from config import FOLDER_SOURCE, CLOUD_BASE_PATH
 
 # Constants
 CHUNK_SIZE = 8192

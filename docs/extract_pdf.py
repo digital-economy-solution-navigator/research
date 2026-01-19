@@ -4,15 +4,9 @@ For normal PDFs: extracts structured text directly.
 For scanned PDFs: can use OCR or move them to a "scanned" folder.
 
 Configuration:
-    FOLDER_SOURCE: Set to "local" or "cloud" to switch between folder locations.
-                   - "local": uses "project docs" folder
-                   - "cloud": uses cloud folder paths (constructed from CLOUD_BASE_PATH)
-    CLOUD_BASE_PATH: Base path for cloud folders (only used when FOLDER_SOURCE = "cloud")
-                     PDFs: {CLOUD_BASE_PATH}/project docs
-                     Text: {CLOUD_BASE_PATH}/text
-                     Scanned: {CLOUD_BASE_PATH}/project docs/scanned
-    USE_OCR_FOR_SCANNED: If True, use OCR to extract text from scanned PDFs.
-                         If False, move scanned PDFs to scanned folder.
+    See config.py for FOLDER_SOURCE, CLOUD_BASE_PATH, and USE_OCR_FOR_SCANNED settings.
+    - "local": uses "project docs" folder
+    - "cloud": uses cloud folder paths (constructed from CLOUD_BASE_PATH)
     You can still override by providing a path as command-line argument.
 """
 
@@ -21,6 +15,7 @@ import os
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 import re
+from config import FOLDER_SOURCE, CLOUD_BASE_PATH, USE_OCR_FOR_SCANNED
 
 # Try to import PDF text extraction libraries
 try:
@@ -41,13 +36,6 @@ try:
     PYPDF2_AVAILABLE = True
 except ImportError:
     PYPDF2_AVAILABLE = False
-
-# Configuration
-FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
-USE_OCR_FOR_SCANNED = True  # If True, use OCR for scanned PDFs; if False, move them to scanned folder
-
-# Cloud base path (only used when FOLDER_SOURCE = "cloud")
-CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\1. Expertise\research"  # Base path for cloud folders
 
 # Folder paths based on FOLDER_SOURCE
 if FOLDER_SOURCE == "cloud":

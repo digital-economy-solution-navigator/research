@@ -3,22 +3,16 @@ Script to find and remove duplicate files between project docs folder and scanne
 Files in the scanned folder take precedence - duplicates in the main folder will be deleted.
 
 Configuration:
-    FOLDER_SOURCE: Set to "local" or "cloud" to switch between folder locations.
-                   - "local": uses "project docs" folder (relative to script)
-                   - "cloud": uses {CLOUD_BASE_PATH}/project docs
-    CLOUD_BASE_PATH: Base path for cloud folders (only used when FOLDER_SOURCE = "cloud")
+    See config.py for FOLDER_SOURCE and CLOUD_BASE_PATH settings.
+    - "local": uses "project docs" folder (relative to script)
+    - "cloud": uses {CLOUD_BASE_PATH}/project docs
 """
 
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import re
-
-# Configuration (same as download.py)
-FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
-
-# Cloud base path (only used when FOLDER_SOURCE = "cloud")
-CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\1. Expertise\research"  # Base path for cloud folders
+from config import FOLDER_SOURCE, CLOUD_BASE_PATH
 
 # Get script directory for local paths
 script_dir = Path(__file__).parent.absolute()

@@ -47,7 +47,7 @@ FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder lo
 USE_OCR_FOR_SCANNED = True  # If True, use OCR for scanned PDFs; if False, move them to scanned folder
 
 # Cloud base path (only used when FOLDER_SOURCE = "cloud")
-CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\research"  # Base path for cloud folders
+CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\1. Expertise\research"  # Base path for cloud folders
 
 # Folder paths based on FOLDER_SOURCE
 if FOLDER_SOURCE == "cloud":

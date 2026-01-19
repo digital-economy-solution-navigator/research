@@ -22,7 +22,7 @@ from collections import Counter
 FOLDER_SOURCE = "cloud"  # Set to "local" or "cloud" to switch between folder locations
 
 # Cloud base path (only used when FOLDER_SOURCE = "cloud")
-CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\research"  # Base path for cloud folders
+CLOUD_BASE_PATH = r"C:\Users\hez\OneDrive - UNIDO\TCS\1. Expertise\research"  # Base path for cloud folders
 
 # Constants
 CHUNK_SIZE = 8192

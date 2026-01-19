@@ -215,8 +215,6 @@ def extract_brief_description(content):
         match = re.search(pattern, first_5000, re.IGNORECASE)
         if match:
             text = match.group(1)
-            # Fix OCR artifacts: remove spaces in the middle of words
-            text = re.sub(r'(\w)\s+(\w)', r'\1\2', text)
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 50 and len(cleaned) < 3000:  # Reasonable length
                 return cleaned
@@ -492,8 +490,6 @@ def extract_challenges(content):
             matches = list(re.finditer(pattern, situation_section, re.IGNORECASE))
             for match in matches:
                 text = match.group(1) if match.groups() else match.group(0)
-                # Fix OCR artifacts
-                text = re.sub(r'(\w)\s+(\w)', r'\1\2', text)
                 cleaned = clean_text(text)
                 if cleaned and len(cleaned) > 100:
                     results.append(cleaned)
@@ -510,8 +506,6 @@ def extract_challenges(content):
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
             text = match.group(1) if match.groups() else match.group(0)
-            # Fix OCR artifacts
-            text = re.sub(r'(\w)\s+(\w)', r'\1\2', text)
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 100:
                 results.append(cleaned)
@@ -747,8 +741,6 @@ def extract_challenges(content):
             if break_match:
                 relevant_text = relevant_text[:break_match.start()]
             
-            # Fix OCR artifacts
-            relevant_text = re.sub(r'(\w)\s+(\w)', r'\1\2', relevant_text)
             cleaned = clean_text(relevant_text)
             if cleaned and len(cleaned) > 200:
                 results.append(cleaned)

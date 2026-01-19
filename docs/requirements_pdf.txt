@@ -1,0 +1,31 @@
+# PDF Text Extraction Requirements
+# Install with: pip install -r requirements_pdf.txt
+
+# For text-based PDFs (fast)
+pdfplumber>=0.9.0
+PyPDF2>=3.0.0
+
+# For scanned PDFs (requires OCR)
+pytesseract>=0.3.10
+pdf2image>=1.16.3
+Pillow>=10.0.0
+
+# IMPORTANT: For OCR to work, you need to install:
+#
+# 1. Tesseract OCR:
+#    Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+#    macOS: brew install tesseract
+#    Linux: sudo apt-get install tesseract-ocr
+#
+# 2. Poppler (required by pdf2image to convert PDF to images):
+#    Windows: Download from https://github.com/oschwartz10612/poppler-windows/releases/
+#            Extract and add 'bin' folder to PATH, or place in C:\poppler\bin
+#    macOS: brew install poppler
+#    Linux: sudo apt-get install poppler-utils
+#
+# After installing poppler on Windows:
+# - Extract the zip file
+# - Copy the 'bin' folder to C:\poppler\bin (or another location)
+# - Add the 'bin' folder to your system PATH, OR
+# - The script will try to auto-detect common installation paths
+

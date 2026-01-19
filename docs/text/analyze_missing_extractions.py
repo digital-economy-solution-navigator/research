@@ -1,8 +1,13 @@
 """Analyze which documents have missing extractions and why."""
 
 import json
+import sys
 from pathlib import Path
 from collections import defaultdict
+
+# Add parent directory to path to import config
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import FOLDER_SOURCE, CLOUD_BASE_PATH
 
 # Read the project_info.json
 script_dir = Path(__file__).parent
@@ -19,18 +24,25 @@ with open(project_info_file, 'r', encoding='utf-8') as f:
 missing_brief = []
 missing_challenges = []
 missing_both = []
+all_nulls = []  # All project IDs with any null
 
 for item in data:
     project_id = item.get('project_id', 'unknown')
-    has_brief = item.get('brief_description') is not None
-    has_challenges = item.get('challenges_problem_statements') is not None
+    brief = item.get('brief_description')
+    challenges = item.get('challenges_problem_statements')
+    
+    has_brief = brief is not None and brief != ""
+    has_challenges = challenges is not None and challenges != ""
     
     if not has_brief and not has_challenges:
         missing_both.append(project_id)
+        all_nulls.append(project_id)
     elif not has_brief:
         missing_brief.append(project_id)
+        all_nulls.append(project_id)
     elif not has_challenges:
         missing_challenges.append(project_id)
+        all_nulls.append(project_id)
 
 print("=" * 70)
 print("MISSING EXTRACTION ANALYSIS")
@@ -48,7 +60,6 @@ print("SAMPLING FILES FOR ANALYSIS")
 print("=" * 70)
 
 # Get text folder
-from config import FOLDER_SOURCE, CLOUD_BASE_PATH
 if FOLDER_SOURCE == "cloud":
     text_dir = Path(CLOUD_BASE_PATH) / "text"
 else:
@@ -91,4 +102,64 @@ for pid in sample_ids:
             
         except Exception as e:
             print(f"  Error reading file: {e}")
+
+# Save detailed analysis to file (same format as analyze_nulls.py)
+detailed_analysis_file = script_dir.parent / "null_values_analysis.txt"
+with open(detailed_analysis_file, 'w', encoding='utf-8') as f:
+    f.write("NULL VALUES ANALYSIS\n")
+    f.write("=" * 70 + "\n\n")
+    f.write(f"Total documents: {len(data)}\n\n")
+    f.write("SUMMARY\n")
+    f.write("-" * 70 + "\n")
+    f.write(f"Missing brief_description only: {len(missing_brief)}\n")
+    f.write(f"Missing challenges_problem_statements only: {len(missing_challenges)}\n")
+    f.write(f"Missing both: {len(missing_both)}\n")
+    f.write(f"\nTotal with null brief_description: {len(missing_brief) + len(missing_both)}\n")
+    f.write(f"Total with null challenges_problem_statements: {len(missing_challenges) + len(missing_both)}\n\n")
+    
+    if missing_brief:
+        f.write(f"\n1. Missing brief_description only ({len(missing_brief)} projects):\n")
+        f.write("-" * 70 + "\n")
+        for pid in sorted(missing_brief, key=lambda x: int(x) if x.isdigit() else 0):
+            f.write(f"{pid}\n")
+    
+    if missing_challenges:
+        f.write(f"\n2. Missing challenges_problem_statements only ({len(missing_challenges)} projects):\n")
+        f.write("-" * 70 + "\n")
+        for pid in sorted(missing_challenges, key=lambda x: int(x) if x.isdigit() else 0):
+            f.write(f"{pid}\n")
+    
+    if missing_both:
+        f.write(f"\n3. Missing both ({len(missing_both)} projects):\n")
+        f.write("-" * 70 + "\n")
+        for pid in sorted(missing_both, key=lambda x: int(x) if x.isdigit() else 0):
+            f.write(f"{pid}\n")
+    
+    f.write(f"\n\n4. ALL PROJECT IDs WITH NULL VALUES (Total: {len(all_nulls)}):\n")
+    f.write("-" * 70 + "\n")
+    for pid in sorted(all_nulls, key=lambda x: int(x) if x.isdigit() else 0):
+        f.write(f"{pid}\n")
+
+# Also save simple list file (for compatibility with other scripts)
+simple_list_file = script_dir.parent / "all_null_project_ids.txt"
+with open(simple_list_file, 'w', encoding='utf-8') as f:
+    f.write("ALL PROJECT IDs WITH NULL VALUES\n")
+    f.write("=" * 70 + "\n\n")
+    f.write(f"Total: {len(all_nulls)}\n\n")
+    f.write("Breakdown:\n")
+    f.write(f"  - Missing brief_description only: {len(missing_brief)}\n")
+    f.write(f"  - Missing challenges_problem_statements only: {len(missing_challenges)}\n")
+    f.write(f"  - Missing both: {len(missing_both)}\n\n")
+    f.write("=" * 70 + "\n")
+    f.write("COMPLETE LIST (sorted):\n")
+    f.write("=" * 70 + "\n")
+    for pid in sorted(all_nulls, key=lambda x: int(x) if x.isdigit() else 0):
+        f.write(f"{pid}\n")
+
+print(f"\n{'=' * 70}")
+print("OUTPUT FILES")
+print(f"{'=' * 70}")
+print(f"Detailed analysis saved to: {detailed_analysis_file}")
+print(f"Simple list saved to: {simple_list_file}")
+print(f"{'=' * 70}")
 

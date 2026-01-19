@@ -10,14 +10,14 @@ NO CHARACTER LIMITS on extracted content.
 Configuration:
     See config.py for FOLDER_SOURCE and CLOUD_BASE_PATH settings.
     - "local": uses "text" folder relative to script directory
-    - "cloud": uses {CLOUD_BASE_PATH}/text
+    - "cloud": uses {CLOUD_BASE_PATH}/text folder
 """
 
 import os
 import re
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add parent directory to path to import config
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -31,21 +31,28 @@ def extract_project_id(filename):
     
     This matches the convention used in other scripts (download.py, check_missing_docs.py, etc.)
     """
-    basename = os.path.basename(filename)
+    if isinstance(filename, Path):
+        basename = filename.name
+    else:
+        basename = os.path.basename(filename)
+    
     # Try to extract project ID from the beginning of filename (format: {project_id}_{rest})
     match = re.match(r'^(\d+)_', basename)
     if match:
         return match.group(1)
-    # Fallback: try to extract numeric ID at the beginning
+    
+    # Fallback: try to extract numeric ID at the beginning (without underscore)
     match = re.match(r'^(\d+)', basename)
     if match:
         return match.group(1)
-    # Try to find any numeric sequence in the filename
+    
+    # Last resort: try to find any numeric sequence in the filename
     match = re.search(r'(\d{5,})', basename)
     if match:
         return match.group(1)
-    # Last resort: use filename without extension
-    return os.path.splitext(basename)[0]
+    
+    # Final fallback: use filename without extension
+    return Path(basename).stem
 
 
 def clean_text(text):
@@ -60,10 +67,6 @@ def clean_text(text):
     text = re.sub(r'^\d{1,3}\s*$', '', text, flags=re.MULTILINE)
     # Remove form feed and other control characters
     text = re.sub(r'[\x0c]', '', text)
-    # Fix common OCR artifacts: spaces in the middle of short words (2-4 chars)
-    # This catches cases like "T his" -> "This", "t o" -> "to", but avoids breaking longer phrases
-    # Only fix if both parts are 1-2 characters (common OCR errors)
-    text = re.sub(r'\b([A-Za-z])\s+([a-z]{1,2})\b', r'\1\2', text)
     # Remove multiple consecutive newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
     # Remove leading/trailing whitespace
@@ -201,14 +204,9 @@ def extract_brief_description(content):
     first_5000 = content[:5000]
     undp_patterns = [
         # "This project aims/seeks/is designed to..." - capture the paragraph
-        # Handle OCR artifacts: spaces in words (e.g., "T his" instead of "This")
-        r'((?:T\s*hi\s*s|Th\s*e)\s+project\s+(?:aims|seeks|is\s+designed|is\s+expected|will)\s+to[^.]+\.(?:[^.]+\.){0,5})',
-        # Standard version (without OCR artifacts)
         r'((?:This|The)\s+project\s+(?:aims|seeks|is\s+designed|is\s+expected|will)\s+to[^.]+\.(?:[^.]+\.){0,5})',
         # After "Implementing Agency:" look for project description paragraph
         r'Implementing\s+(?:Agency|Partner)\s*:\s*[^\n]+\n\s*([A-Z][^.]+(?:project|programme|initiative)[^.]*\.(?:[^.]+\.){0,5})',
-        # After "Executing Entity:" or "Implementing Agency:" - next paragraph
-        r'(?:Executing\s+Entity|Implementing\s+Agency)\s*:\s*[^\n]+\n\s*([A-Z][^.]*(?:project|programme|initiative|aims|seeks|will|is\s+designed)[^.]*\.(?:[^.]+\.){0,5})',
     ]
     
     for pattern in undp_patterns:
@@ -322,6 +320,48 @@ def extract_brief_description(content):
             text = match.group(1)
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 100 and len(cleaned) < 5000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 12: One Programme / UN Programme Objective
+    # ==========================================================================
+    
+    one_programme_patterns = [
+        # "1 Objective of the One Programme" or similar numbered objective
+        r'\d+\s+Objective\s+of\s+the\s+(?:One\s+)?Programme\s*\n([\s\S]*?)(?=\n\s*\d+\s+(?:One\s+)?Programme\s+Structure|\n\s*\d+\.\d+|\n\s*2\s+[A-Z])',
+        # "Objective of the Programme" without number
+        r'Objective\s+of\s+the\s+(?:One\s+)?Programme\s*\n([\s\S]*?)(?=\n\s*(?:Programme\s+Structure|\d+\.\d+|\d+\s+[A-Z]))',
+        # Generic "Programme Objective" section
+        r'Programme\s+Objective[s]?\s*\n([\s\S]*?)(?=\n\s*(?:\d+\s+[A-Z]|\d+\.\d+|Programme\s+Structure))',
+    ]
+    
+    for pattern in one_programme_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 50 and len(cleaned) < 5000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 13: Meeting Report / Committee Report Introduction
+    # ==========================================================================
+    
+    meeting_report_patterns = [
+        # "Introduction" section with numbered paragraphs (like ExCom reports)
+        r'\n\s*Introduction\s*\n((?:\d+\.\s+[\s\S]*?)(?=\n\s*AGENDA\s+ITEM|\n\s*[A-Z]+\s+ITEM|\n\s*\d+\.\s+[A-Z][a-z]+\s+of))',
+        # "REPORT OF THE..." followed by Introduction
+        r'REPORT\s+OF\s+THE\s+[^\n]+\n\s*Introduction\s*\n([\s\S]*?)(?=\n\s*AGENDA\s+ITEM)',
+        # Generic Introduction for reports
+        r'\n\s*Introduction\s*\n([\s\S]*?)(?=\n\s*(?:AGENDA|Contents|Table\s+of|I\.\s+|1\.\s+[A-Z][a-z]+\s+[a-z]))',
+    ]
+    
+    for pattern in meeting_report_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
                 return cleaned
     
     return None
@@ -469,35 +509,9 @@ def extract_challenges(content):
     # PATTERN GROUP 1.5: SITUATION ANALYSIS with challenges (UNDP format)
     # ==========================================================================
     
-    # First, try to find "I. SITUATION ANALYSIS" section and extract challenges from it
-    situation_analysis_match = re.search(r'I\.\s*SITUATION\s+ANALYSIS\s*\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|STRATEGY|PART\s+))', content, re.IGNORECASE)
-    if situation_analysis_match:
-        situation_section = situation_analysis_match.group(1)
-        
-        # Within situation analysis, look for challenge statements
-        situation_challenge_patterns = [
-            # "The main socio-economic challenges facing... include:"
-            r'(?:main|major|key)\s+(?:socio-economic\s+)?challenges?\s+(?:facing|include|are)[:\s]*([\s\S]*?)(?=\n\s*(?:II\.|2\.|To\s+alleviate|In\s+response|The\s+project|Barriers?|Demand))',
-            # "Barriers for..." section
-            r'Barriers?\s+(?:for|to)\s+(?:effective\s+)?[^\n]+\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|[A-Z]\.\s+|The\s+project|Demand))',
-            # "The main reasons for..." (often followed by challenges)
-            r'(?:main|major|key)\s+reasons?\s+(?:for|why)[^\n]+\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|[A-Z]\.\s+|The\s+project|Demand))',
-            # "constraints being:" or "constraints include:"
-            r'(?:main|major|key)\s+constraints?\s+(?:being|include|are)[:\s]*([\s\S]*?)(?=\n\s*(?:II\.|2\.|In\s+agriculture|\([a-z]\)|The\s+project))',
-        ]
-        
-        for pattern in situation_challenge_patterns:
-            matches = list(re.finditer(pattern, situation_section, re.IGNORECASE))
-            for match in matches:
-                text = match.group(1) if match.groups() else match.group(0)
-                cleaned = clean_text(text)
-                if cleaned and len(cleaned) > 100:
-                    results.append(cleaned)
-    
-    # Also try patterns that work anywhere in the document
     situation_patterns = [
-        # Look for "socio-economic challenges" or similar anywhere
-        r'(?:main|major|key)\s+(?:socio-economic\s+)?challenges?\s+(?:facing|include|are)[:\s]*([\s\S]*?)(?=\n\s*(?:II\.|2\.|To\s+alleviate|In\s+response|The\s+project))',
+        # Look for "socio-economic challenges" or similar in situation analysis
+        r'(?:main|major|key)\s+(?:socio-economic\s+)?challenges\s+(?:facing|include|are)[:\s]*([\s\S]*?)(?=\n\s*(?:II\.|2\.|To\s+alleviate|In\s+response|The\s+project))',
         # "Barriers for..." section
         r'Barriers?\s+(?:for|to)\s+(?:effective\s+)?[^\n]+\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|[A-Z]\.\s+|The\s+project))',
     ]
@@ -505,7 +519,7 @@ def extract_challenges(content):
     for pattern in situation_patterns:
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
-            text = match.group(1) if match.groups() else match.group(0)
+            text = match.group(0) if '(' not in pattern[:20] else match.group(0)
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 100:
                 results.append(cleaned)
@@ -723,42 +737,6 @@ def extract_challenges(content):
             if cleaned and len(cleaned) > 100:
                 return cleaned
     
-    # ==========================================================================
-    # PATTERN GROUP 8: Extract entire Situation Analysis section if it contains challenges
-    # ==========================================================================
-    
-    # If we haven't found anything yet, try to extract the entire Situation Analysis section
-    # and look for challenge-related content within it
-    situation_full_match = re.search(r'I\.\s*SITUATION\s+ANALYSIS\s*\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|STRATEGY|PART\s+))', content, re.IGNORECASE)
-    if situation_full_match:
-        situation_text = situation_full_match.group(1)
-        # Check if it contains challenge-related keywords
-        if re.search(r'challeng|problem|constraint|barrier|difficult|impediment|obstacle|issue|risk|threat', situation_text, re.IGNORECASE):
-            # Extract the most relevant parts (first 5000 chars usually contain the main challenges)
-            relevant_text = situation_text[:5000]
-            # Try to find a natural break point
-            break_match = re.search(r'(?:To\s+alleviate|In\s+response|The\s+project|Barriers?|Demand)', relevant_text, re.IGNORECASE)
-            if break_match:
-                relevant_text = relevant_text[:break_match.start()]
-            
-            cleaned = clean_text(relevant_text)
-            if cleaned and len(cleaned) > 200:
-                results.append(cleaned)
-    
-    if results:
-        seen = set()
-        unique_results = []
-        for r in results:
-            key = r[:100] if len(r) > 100 else r
-            if key not in seen:
-                seen.add(key)
-                unique_results.append(r)
-        
-        if len(unique_results) == 1:
-            return unique_results[0]
-        else:
-            return '\n\n---\n\n'.join(unique_results)
-    
     return None
 
 
@@ -799,27 +777,21 @@ def process_document(filepath):
     Process a single document and extract required information.
     
     Args:
-        filepath: Path to the text file (str or Path)
+        filepath: Path object or string path to the text file
     
     Returns:
-        Dictionary with project_id, brief_description, challenges_problem_statements
+        Dictionary with project_id, brief_description, challenges_problem_statements, and optional error
     """
-    filepath = Path(filepath)
-    
-    if not filepath.exists():
-        return {
-            'project_id': extract_project_id(str(filepath)),
-            'brief_description': None,
-            'challenges_problem_statements': None,
-            'error': f"File not found: {filepath}"
-        }
+    # Convert to Path if needed
+    if isinstance(filepath, str):
+        filepath = Path(filepath)
     
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
     except Exception as e:
         return {
-            'project_id': extract_project_id(str(filepath)),
+            'project_id': extract_project_id(filepath),
             'brief_description': None,
             'challenges_problem_statements': None,
             'error': f"Failed to read file: {str(e)}"
@@ -828,7 +800,7 @@ def process_document(filepath):
     # Normalize line endings
     content = content.replace('\r\n', '\n').replace('\r', '\n')
     
-    project_id = extract_project_id(str(filepath))
+    project_id = extract_project_id(filepath)
     brief_description = extract_brief_description(content)
     
     # Try multiple approaches for challenges
@@ -844,7 +816,13 @@ def process_document(filepath):
 
 
 def main():
-    """Main function to process all documents"""
+    """
+    Main function to process all documents.
+    
+    Uses config.py settings for default paths:
+    - FOLDER_SOURCE: "local" or "cloud"
+    - CLOUD_BASE_PATH: base path for cloud folders (when FOLDER_SOURCE="cloud")
+    """
     import argparse
     
     # Get script directory for default paths
@@ -853,29 +831,31 @@ def main():
     # Determine default text folder based on FOLDER_SOURCE
     if FOLDER_SOURCE == "cloud":
         default_text_dir = Path(CLOUD_BASE_PATH) / "text"
-        default_output_file = script_dir.parent / "project_info.json"
     else:  # local
         default_text_dir = script_dir
-        default_output_file = script_dir.parent / "project_info.json"
+    
+    # Default output file is in the docs directory (parent of text)
+    default_output_file = script_dir.parent / "project_info.json"
     
     parser = argparse.ArgumentParser(
         description='Extract project info from UNIDO TC documents',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Examples:
-  # Process all txt files in default text folder ({default_text_dir})
-  python extract_project_info.py
+  # Process all txt files in default text folder (uses config.py settings)
+  python docs/text/extract_project_info.py
   
   # Process files from a specific directory
-  python extract_project_info.py --input-dir /path/to/text/files
+  python docs/text/extract_project_info.py --input-dir /path/to/text/files
   
   # Specify custom output file
-  python extract_project_info.py --output-file /path/to/output.json
+  python docs/text/extract_project_info.py --output-file /path/to/output.json
   
   # Verbose mode (show details for each file)
-  python extract_project_info.py --verbose
+  python docs/text/extract_project_info.py --verbose
         """
     )
+    
     parser.add_argument('--input-dir', '-i', 
                         default=str(default_text_dir),
                         help=f'Input directory containing .txt files (default: {default_text_dir})')
@@ -901,7 +881,7 @@ Examples:
         return
     
     # Find all txt files
-    txt_files = sorted(input_dir.glob('*.txt'))
+    txt_files = sorted(list(input_dir.glob('*.txt')))  # Sort for consistent processing
     
     if not txt_files:
         print(f"No .txt files found in {input_dir}")
@@ -919,14 +899,14 @@ Examples:
     success_count = 0
     brief_found = 0
     challenges_found = 0
-    error_count = 0
+    error_count = 0  # Track errors
     
     for i, filepath in enumerate(txt_files, 1):
         if verbose or i % 100 == 0:
             print(f"Processing [{i}/{len(txt_files)}]: {filepath.name}")
         
         try:
-            result = process_document(filepath)
+            result = process_document(filepath)  # Pass Path object
             results.append(result)
             
             if 'error' not in result:
@@ -936,7 +916,7 @@ Examples:
                 if result['challenges_problem_statements']:
                     challenges_found += 1
             else:
-                error_count += 1
+                error_count += 1  # Increment error count
             
             if verbose:
                 print(f"  - Project ID: {result['project_id']}")
@@ -949,10 +929,10 @@ Examples:
                     print(f"  - Challenges: {'Found' if result['challenges_problem_statements'] else 'Not found'} ({chall_len} chars)")
         
         except Exception as e:
-            error_count += 1
-            print(f"  ✗ Error processing {filepath.name}: {e}")
+            error_count += 1  # Increment error count for unexpected exceptions
+            print(f"  ✗ Unexpected error processing {filepath.name}: {e}")
             results.append({
-                'project_id': extract_project_id(str(filepath)),
+                'project_id': extract_project_id(filepath),
                 'brief_description': None,
                 'challenges_problem_statements': None,
                 'error': str(e)
@@ -976,7 +956,7 @@ Examples:
     print(f"{'='*70}")
     print(f"Total files processed: {len(results)}")
     print(f"Successfully processed: {success_count}")
-    print(f"Errors: {error_count}")
+    print(f"Errors: {error_count}")  # Display error count
     print(f"Brief descriptions found: {brief_found} ({brief_found/len(results)*100:.1f}%)")
     print(f"Challenges found: {challenges_found} ({challenges_found/len(results)*100:.1f}%)")
     print(f"{'='*70}")

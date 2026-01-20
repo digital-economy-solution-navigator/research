@@ -74,6 +74,32 @@ def clean_text(text):
     return text if text else None
 
 
+def clean_double_letter_encoding(text):
+    """
+    Clean double-letter encoding artifacts from PDF extraction.
+    E.g., "TThhee" -> "The", "pprroojjeecctt" -> "project", "mmmooonnnttthhhsss" -> "months"
+    Also handles digits: "22000099" -> "2009" and punctuation: "(((NQP)))" -> "(NQP)"
+    """
+    if not text:
+        return text
+    
+    # Pattern to detect double/triple-letter sequences
+    # Check if text has significant repeated-letter encoding
+    double_letter_count = len(re.findall(r'([A-Za-z])\1', text))
+    triple_letter_count = len(re.findall(r'([A-Za-z])\1\1', text))
+    total_letters = len(re.findall(r'[A-Za-z]', text))
+    
+    # If more than 20% of letter pairs are doubles/triples, likely encoded
+    if total_letters > 20 and (double_letter_count + triple_letter_count * 2) / (total_letters / 2) > 0.2:
+        # First handle triple characters (e.g., "mmm" -> "m", "(((" -> "(")
+        result = re.sub(r'(.)\1\1', r'\1', text)
+        # Then handle double characters (e.g., "TT" -> "T", "22" -> "2")
+        result = re.sub(r'(.)\1', r'\1', result)
+        return result
+    
+    return text
+
+
 def extract_brief_description(content):
     """Extract the 'Brief description' section from the document - NO LENGTH LIMITS"""
     
@@ -463,6 +489,121 @@ def extract_brief_description(content):
             text = match.group(1)
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 19: Objectives of the action (EU Grant format) - check BEFORE SUMMARY
+    # ==========================================================================
+    
+    objectives_patterns = [
+        # "Objectives of the action" in grant forms - capture until Target group
+        r'Objectives?\s+of\s+the\s+action\s*\n([\s\S]*?)(?=\n\s*Target\s+group)',
+    ]
+    
+    for pattern in objectives_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 50 and len(cleaned) < 3000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 20: SUMMARY section (standalone or numbered)
+    # ==========================================================================
+    
+    summary_section_patterns = [
+        # Standalone "SUMMARY" section (NOT "SUMMARY OF THE ACTION" which is a table format)
+        r'\n\s*SUMMARY\s*\n([\s\S]*?)(?=\n\s*(?:The\s+proposed|More\s+precisely|Prior\s+to|\d+\.\s+[A-Z]|[A-Z]\.\s+[A-Z]|Table\s+of))',
+        # Summary followed by project description
+        r'\n\s*Summary\s*[:\n]\s*([\s\S]*?)(?=\n\s*(?:\d+\.\s+|[A-Z]\.\s+|Table\s+of|Contents))',
+    ]
+    
+    for pattern in summary_section_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 20: "The application relates to:" pattern
+    # ==========================================================================
+    
+    application_patterns = [
+        r'The\s+application\s+relates\s+to\s*[:\n]\s*([\s\S]*?)(?=\n\s*(?:Location|Total\s+calculated|Timeframe|Previous))',
+    ]
+    
+    for pattern in application_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 50 and len(cleaned) < 3000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 21: Brief description field in header table (ONLY in first 6000 chars)
+    # ==========================================================================
+    
+    # Only search in first 6000 chars to avoid matching "brief description" phrases elsewhere
+    header_content = content[:6000]
+    brief_field_patterns = [
+        # "Brief description:" field - capture multiline content until "Approved" or page number
+        r'Brief\s+description\s*:\s*([\s\S]*?)(?=\n\s*(?:\d+\s*\n\s*\n|Approved\s*:|Page\s+\d))',
+    ]
+    
+    for pattern in brief_field_patterns:
+        match = re.search(pattern, header_content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            # Clean double-letter encoding (e.g., "TThhee" -> "The")
+            text = clean_double_letter_encoding(text)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100 and len(cleaned) < 10000:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 22: Preamble before Table of Contents (UNIDO project docs)
+    # ==========================================================================
+    
+    preamble_patterns = [
+        # Content between "In-kind" and "Approved:" - common UNIDO PRODOC format
+        r'(?:In-kind|Counterpart\s+inputs\s+In-kind)[^\n]*\n(Since[\s\S]*?)(?=\n\s*Approved\s*:)',
+        # Content starting with "Since the signing" before Approved
+        r'\n(Since\s+the\s+signing[\s\S]*?)(?=\n\s*Approved\s*:)',
+        # Content between header info and Approved/Table of Contents
+        r'(?:Executing\s+agency|UNIDO\s+inputs)[^\n]*\n([\s\S]*?)(?=\n\s*(?:Table\s+of\s+Contents|Contents\s*\n|Approved\s*:))',
+    ]
+    
+    for pattern in preamble_patterns:
+        match = re.search(pattern, content[:5000], re.IGNORECASE)  # Only search first 5000 chars
+        if match:
+            text = match.group(1)
+            # Skip if it's just signature blocks or too short
+            if len(text) > 200 and not re.search(r'^[\s\n]*Signature|^[\s\n]*On\s+behalf', text[:100]):
+                cleaned = clean_text(text)
+                if cleaned and len(cleaned) > 100 and len(cleaned) < 5000:
+                    return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 23: Service Summary Sheet / Origin of proposal
+    # ==========================================================================
+    
+    service_summary_patterns = [
+        # "Origin of proposal:" section
+        r'Origin\s+of\s+proposal\s*[:\n]\s*([\s\S]*?)(?=\n\s*(?:Problem|Research\s+issue|Objective|Expected))',
+        # Service Summary Sheet intro after title
+        r'Service\s+Summary\s+Sheet\s*\n(?:[^\n]*\n){1,5}([\s\S]*?)(?=\n\s*(?:Problem|SSS-|Page\s+\d))',
+    ]
+    
+    for pattern in service_summary_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 50 and len(cleaned) < 5000:
                 return cleaned
     
     return None
@@ -874,19 +1015,7 @@ def extract_all_challenges_sections(content):
 
 
 def process_document(filepath):
-    """
-    Process a single document and extract required information.
-    
-    Args:
-        filepath: Path object or string path to the text file
-    
-    Returns:
-        Dictionary with project_id, brief_description, challenges_problem_statements, and optional error
-    """
-    # Convert to Path if needed
-    if isinstance(filepath, str):
-        filepath = Path(filepath)
-    
+    """Process a single document and extract required information"""
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()

@@ -612,17 +612,16 @@ def extract_brief_description(content):
 def extract_challenges(content):
     """
     Extract the 'Challenges/Problems' section from the document.
-    Handles multiple document structures and formats including GEF CEO Endorsement docs.
+    UPDATED VERSION with additional patterns based on document analysis.
     NO CHARACTER LIMITS applied.
     """
     
     results = []
     
     # ==========================================================================
-    # PATTERN GROUP 0: GEF CEO Endorsement specific sections (highest priority for GEF docs)
+    # PATTERN GROUP 0: GEF CEO Endorsement specific sections (highest priority)
     # ==========================================================================
     
-    # A.4 baseline project and problem section (GEF format)
     gef_problem_patterns = [
         r'A\.?\s*4\.?\s*(?:The\s+)?baseline\s+project\s+and\s+(?:the\s+)?problem(?:\s+that\s+it\s+seeks\s+to\s+address)?',
         r'A\.?\s*\d+\.?\s*(?:The\s+)?problem(?:\s+that\s+it\s+seeks)?\s+to\s+(?:be\s+)?address',
@@ -632,7 +631,6 @@ def extract_challenges(content):
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
             start = match.end()
-            # Find end (next A.5 or A.6 section, or B section)
             end_match = re.search(r'\n\s*(?:A\.?\s*[5-9]|B\.?\s+[A-Z]|C\.?\s+)', content[start:], re.IGNORECASE)
             if end_match:
                 section_text = content[start:start + end_match.start()]
@@ -644,43 +642,111 @@ def extract_challenges(content):
                 if cleaned and len(cleaned) > 100:
                     results.append(cleaned)
     
-    # Barrier Analysis section (GEF format)
-    barrier_patterns = [
-        r'\n\s*Barrier\s+Analysis\s*\n',
-        r'\n\s*(?:Key\s+)?Barriers?\s+(?:to\s+)?(?:the\s+)?(?:Development|Achievement|Implementation)',
-        r'(?:main|key|significant)\s+barriers?\s+(?:to\s+achieving|include|are)',
-    ]
+    # ==========================================================================
+    # NEW PATTERN: "Barriers" section with numbered barriers (GEF PIF format)
+    # Example: "Barrier #1: Limited knowledge..."
+    # ==========================================================================
     
-    for pattern in barrier_patterns:
-        matches = list(re.finditer(pattern, content, re.IGNORECASE))
-        for match in matches:
-            start = match.start()
-            # Find end of barrier section
-            end_match = re.search(r'\n\s*(?:[A-Z]\.?\s*\d+\.?\s+[A-Z]|\d+\.\s+[A-Z][a-z]+\s+[A-Z]|The\s+project\s+(?:strategy|will|aims))', content[match.end():], re.IGNORECASE)
-            if end_match:
-                section_text = content[start:match.end() + end_match.start()]
-            else:
-                section_text = content[start:start + 15000]
-            
-            if len(section_text) > 100:
-                cleaned = clean_text(section_text)
-                if cleaned:
-                    results.append(cleaned)
+    barriers_header_pattern = r'\n\s*Barriers?\s*\n'
+    match = re.search(barriers_header_pattern, content, re.IGNORECASE)
+    if match:
+        start = match.start()
+        # Find end - next major section like "2)", numbered section, or lettered section
+        end_match = re.search(r'\n\s*(?:\d+\)\s+[A-Z]|[A-Z]\.\s+[A-Z]|Component\s+\d)', content[match.end():], re.IGNORECASE)
+        if end_match:
+            section_text = content[start:match.end() + end_match.start()]
+        else:
+            section_text = content[start:start + 20000]
+        
+        if len(section_text) > 100:
+            cleaned = clean_text(section_text)
+            if cleaned:
+                results.append(cleaned)
     
-    # If we found GEF-specific sections, return them
+    # Also look for inline "Barrier #N:" patterns
+    barrier_numbered_pattern = r'(Barrier\s*#?\s*\d+\s*[:\-][^\n]+(?:\n(?!Barrier\s*#?\s*\d+)[^\n]+)*)'
+    barrier_matches = re.findall(barrier_numbered_pattern, content, re.IGNORECASE)
+    if barrier_matches and not results:
+        combined_barriers = '\n\n'.join(barrier_matches)
+        if len(combined_barriers) > 100:
+            results.append(clean_text(combined_barriers))
+    
     if results:
         seen = set()
         unique_results = []
         for r in results:
-            key = r[:100] if len(r) > 100 else r
-            if key not in seen:
-                seen.add(key)
-                unique_results.append(r)
-        
-        if len(unique_results) == 1:
-            return unique_results[0]
-        else:
-            return '\n\n---\n\n'.join(unique_results)
+            if r:
+                key = r[:100] if len(r) > 100 else r
+                if key not in seen:
+                    seen.add(key)
+                    unique_results.append(r)
+        if unique_results:
+            return '\n\n---\n\n'.join(unique_results) if len(unique_results) > 1 else unique_results[0]
+    
+    results = []
+    
+    # ==========================================================================
+    # NEW PATTERN: "Problem to be addressed:" (standalone, like in 140337)
+    # ==========================================================================
+    
+    problem_standalone_patterns = [
+        r'Problem(?:s)?\s+to\s+be\s+addressed\s*[:\-]\s*\n([\s\S]*?)(?=\n\s*(?:Background|Expected\s+target|Counterpart|Project\s+purpose|[A-Z]\.\s+[A-Z]))',
+        r'Problem(?:s)?\s+to\s+be\s+addressed\s*[:\-]\s*\n([\s\S]*?)(?=\n\n[A-Z][a-z]+\s*\n)',
+    ]
+    
+    for pattern in problem_standalone_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100:
+                return cleaned
+    
+    # ==========================================================================
+    # NEW PATTERN: "THEREFORE, THE PROBLEMS TO BE ADDRESSED ARE:" (like 140016)
+    # ==========================================================================
+    
+    therefore_pattern = r'THEREFORE,?\s+THE\s+PROBLEMS?\s+TO\s+BE\s+ADDRESSED\s+(?:ARE|IS)\s*[:\-]?\s*\n([\s\S]*?)(?=\n\s*(?:In\s+order\s+to|In\s+this\s+context|UNIDO|[A-Z]\.\s+[A-Z]))'
+    match = re.search(therefore_pattern, content, re.IGNORECASE)
+    if match:
+        text = match.group(1)
+        cleaned = clean_text(text)
+        if cleaned and len(cleaned) > 100:
+            return cleaned
+    
+    # ==========================================================================
+    # NEW PATTERN: "B.1 Problems to be addressed" (like 101091)
+    # ==========================================================================
+    
+    b1_problems_patterns = [
+        r'B\.?\s*1\.?\s*Problems?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*(?:B\.?\s*2|B\.?\s*\d+\.?\s*Expected|C\.?\s+|There\s+is\s+an\s+urgent))',
+        r'B\.?\s*1\.?\s*Problems?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*B\.?\s*\d+)',
+    ]
+    
+    for pattern in b1_problems_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100:
+                return cleaned
+    
+    # ==========================================================================
+    # NEW PATTERN: "A.1. Problems to be addressed" (like 140226)
+    # ==========================================================================
+    
+    a1_problems_patterns = [
+        r'A\.?\s*1\.?\s*Problems?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*(?:A\.?\s*2|Map\s+of|Damage\s+caused|[A-Z][a-z]+\s+of\s+[A-Z]))',
+        r'A\.?\s*1\.?\s*Problems?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*A\.?\s*\d+)',
+    ]
+    
+    for pattern in a1_problems_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100:
+                return cleaned
     
     # ==========================================================================
     # PATTERN GROUP 0.5: GEF PIF "B.1. Describe the baseline project and the problem"
@@ -695,7 +761,6 @@ def extract_challenges(content):
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
             start = match.end()
-            # Find end (next B.2 or C section)
             end_match = re.search(r'\n\s*(?:B\.?\s*[2-9]|C\.?\s+|PART\s+)', content[start:], re.IGNORECASE)
             if end_match:
                 section_text = content[start:start + end_match.start()]
@@ -721,26 +786,24 @@ def extract_challenges(content):
         r'A\.?\s*2\.?\s*(?:THEMATIC\s+CONTEXT[:\s]*)?CHALLENGES\s+TO\s+BE\s+ADDRESSED',
         r'A\.?\s*2\.?\s*(?:GLOBAL\s+)?(?:CURRENT\s+)?SITUATION\s+AND\s+PROBLEMS?/?CHALLENGES?',
         r'A\.?\s*2\.?\s*PROBLEMS?\s+(?:AND\s+)?CHALLENGES?',
+        r'A\.?\s*2\.?\s*Problems?\s+to\s+be\s+addressed',
     ]
     
     for pattern in a2_patterns:
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
             start = match.end()
-            # Find end of section (A.3, B., or next major section)
             end_match = re.search(r'\n\s*(?:A\.?\s*3\s|B\.?\s+[A-Z]|C\.?\s+[A-Z]|PART\s+)', content[start:], re.IGNORECASE)
             if end_match:
                 section_text = content[start:start + end_match.start()]
             else:
                 section_text = content[start:start + 50000]
             
-            # Verify it's actual content, not just TOC (has sentences with periods)
             if len(section_text) > 300 and re.search(r'\.\s+[A-Z]', section_text):
                 cleaned = clean_text(section_text)
                 if cleaned and len(cleaned) > 100:
                     results.append(cleaned)
     
-    # If we found explicit A.2 CHALLENGES section, return it (don't add more)
     if results:
         if len(results) == 1:
             return results[0]
@@ -748,13 +811,49 @@ def extract_challenges(content):
             return '\n\n---\n\n'.join(results)
     
     # ==========================================================================
+    # NEW PATTERN: Situation Analysis section with problem keywords
+    # ==========================================================================
+    
+    situation_analysis_patterns = [
+        # Look for "Situation Analysis" followed by problem-related content
+        r'(?:\d+\.?\s*)?Situation\s+Analysis\s*\n([\s\S]*?)(?=\n\s*(?:\d+\.?\s*[A-Z][a-z]+\s+[A-Z]|NDS\s+and|Assessment\s+of|[A-Z]\.\s+[A-Z]))',
+    ]
+    
+    for pattern in situation_analysis_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            # Only include if it contains problem-related keywords
+            if re.search(r'unemploy|poverty|constraint|challenge|problem|crisis|lack\s+of|deficit|obstacle', text, re.IGNORECASE):
+                cleaned = clean_text(text)
+                if cleaned and len(cleaned) > 200:
+                    return cleaned
+    
+    # ==========================================================================
+    # NEW PATTERN: Background section describing crisis/problems (like 110031)
+    # ==========================================================================
+    
+    background_crisis_patterns = [
+        # Background sections that describe war/crisis/damage - capture if it has keywords
+        r'(?:A\.?\s*)?Background\s*\n([\s\S]*?)(?=\n\s*(?:B\.?\s+|C\.?\s+|Objectives?\s*\n|\d+\.\s+[A-Z]))',
+    ]
+    
+    for pattern in background_crisis_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            # Only include if it mentions crisis/problems/challenges/destruction
+            if re.search(r'civil\s+war|crisis|destroy|devastat|lack\s+of|shortage|inadequate|insufficient|gap\s+in|problem|challenge|constrain', text, re.IGNORECASE):
+                cleaned = clean_text(text)
+                if cleaned and len(cleaned) > 200 and len(cleaned) < 10000:
+                    return cleaned
+    
+    # ==========================================================================
     # PATTERN GROUP 1.5: SITUATION ANALYSIS with challenges (UNDP format)
     # ==========================================================================
     
     situation_patterns = [
-        # Look for "socio-economic challenges" or similar in situation analysis
         r'(?:main|major|key)\s+(?:socio-economic\s+)?challenges\s+(?:facing|include|are)[:\s]*([\s\S]*?)(?=\n\s*(?:II\.|2\.|To\s+alleviate|In\s+response|The\s+project))',
-        # "Barriers for..." section
         r'Barriers?\s+(?:for|to)\s+(?:effective\s+)?[^\n]+\n([\s\S]*?)(?=\n\s*(?:II\.|2\.|[A-Z]\.\s+|The\s+project))',
     ]
     
@@ -773,13 +872,11 @@ def extract_challenges(content):
             return '\n\n---\n\n'.join(results)
     
     # ==========================================================================
-    # PATTERN GROUP 1.6: Numbered "Challenges to be addressed" section (Country Programme)
+    # PATTERN GROUP 1.6: Numbered "Challenges to be addressed" section
     # ==========================================================================
     
     numbered_challenges_patterns = [
-        # 1.2. Challenges to be addressed
         r'\d+\.?\s*\d*\.?\s*Challenges?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*(?:\d+\.?\s*\d*\.?\s*[A-Z][a-z]+|[A-Z]\.\s+|\d+\.0\s+))',
-        # Challenges to be addressed (standalone)
         r'Challenges?\s+to\s+be\s+addressed\s*\n([\s\S]*?)(?=\n\s*(?:\d+\.\s*[A-Z]|[A-Z]\.\s+|II\.|2\.))',
     ]
     
@@ -787,10 +884,50 @@ def extract_challenges(content):
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
             text = match.group(1)
-            # Skip if it's just a TOC entry (too short)
             if len(text) > 200:
                 cleaned = clean_text(text)
                 if cleaned and len(cleaned) > 100:
+                    results.append(cleaned)
+    
+    if results:
+        if len(results) == 1:
+            return results[0]
+        else:
+            return '\n\n---\n\n'.join(results)
+    
+    # ==========================================================================
+    # NEW PATTERN: "Key constraints" or "Main constraints" sections
+    # ==========================================================================
+    
+    constraints_patterns = [
+        r'(?:key|main|major)\s+constraints?\s+(?:include|are|facing)[:\s]*([\s\S]*?)(?=\n\s*(?:In\s+the\s+case|The\s+lack|[A-Z]\.\s+[A-Z]))',
+        r'constraints?\s+(?:that\s+)?(?:seriously\s+)?(?:inhibit|limit|hinder)[^\n]*\n([\s\S]*?)(?=\n\s*(?:In\s+the\s+case|[A-Z]\.\s+[A-Z]|\d+\.\s+[A-Z]))',
+    ]
+    
+    for pattern in constraints_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(0)
+            cleaned = clean_text(text)
+            if cleaned and len(cleaned) > 100:
+                return cleaned
+    
+    # ==========================================================================
+    # PATTERN GROUP 1.7: Numbered "Challenges to [Topic]"
+    # ==========================================================================
+    
+    numbered_topic_challenges_patterns = [
+        r'\d+\.?\s*Challenges?\s+to\s+[^\n]+\n([\s\S]*?)(?=\n\s*(?:\d+\.?\s*(?:Problem|Objective|Expected|Project)|[A-Z]\.\s+))',
+        r'\d+\.?\s*Problem\s+Statement\s*\n([\s\S]*?)(?=\n\s*(?:\d+\.?\s*[A-Z]|[A-Z]\.\s+))',
+    ]
+    
+    for pattern in numbered_topic_challenges_patterns:
+        matches = list(re.finditer(pattern, content, re.IGNORECASE))
+        for match in matches:
+            text = match.group(1)
+            if len(text) > 100:
+                cleaned = clean_text(text)
+                if cleaned and len(cleaned) > 50:
                     results.append(cleaned)
     
     if results:
@@ -833,7 +970,6 @@ def extract_challenges(content):
         r'\n\s*(?:Key\s+)?(?:Problems?|Issues?)\s+(?:to\s+be\s+)?(?:Addressed|Identified|Tackled)\s*\n',
         r'\n\s*(?:Main|Major|Key)\s+(?:Problems?|Challenges?|Issues?|Constraints?)\s*\n',
         r'\n\s*(?:Development\s+)?(?:Problem|Challenge)\s+(?:Analysis|Statement)\s*\n',
-        # Roman numeral Problem Statement (like "I. Problem Statement")
         r'\n\s*[IVX]+\.?\s*Problem\s+Statement\s*\n',
     ]
     
@@ -863,7 +999,6 @@ def extract_challenges(content):
     # ==========================================================================
     
     context_patterns = [
-        # These patterns look for sentences that introduce challenge lists
         r'(?:challenges?\s+facing\s+the\s+(?:industrial|manufacturing|SME|country)|challenges?\s+include\s*[:\n])',
         r'(?:key|main|major)\s+(?:challenges?|problems?|constraints?|issues?)\s+(?:include|are|identified)\s*[:\n]',
         r'(?:industries?|sector|enterprises?|SMEs?)\s+face\s+(?:the\s+following\s+)?(?:major\s+)?(?:challenges?|problems?)',
@@ -872,12 +1007,9 @@ def extract_challenges(content):
     for pattern in context_patterns:
         matches = list(re.finditer(pattern, content, re.IGNORECASE))
         for match in matches:
-            # Get the paragraph containing this match and the following content
             para_start = max(0, content.rfind('\n\n', 0, match.start()) + 2)
-            # Find end - look for next major section or double newline after content
             search_start = match.end()
             
-            # Look for bullet points or numbered lists after the match
             bullet_content = re.search(r'((?:\s*[•\-\*\►\●]\s*[^\n]+\n?)+)', content[search_start:search_start + 5000])
             numbered_content = re.search(r'((?:\s*\d+[\.\)]\s*[^\n]+\n?)+)', content[search_start:search_start + 5000])
             
@@ -886,7 +1018,6 @@ def extract_challenges(content):
             elif numbered_content:
                 end = search_start + numbered_content.end()
             else:
-                # Look for next section
                 end_match = re.search(r'\n\n\s*(?:\d+\.\s+[A-Z]|[A-Z][a-z]+\s+[A-Z])', content[search_start:])
                 if end_match:
                     end = search_start + end_match.start()
@@ -900,7 +1031,6 @@ def extract_challenges(content):
                     results.append(cleaned)
     
     if results:
-        # Deduplicate
         seen = set()
         unique_results = []
         for r in results:
@@ -945,7 +1075,7 @@ def extract_challenges(content):
             return '\n\n---\n\n'.join(unique_results)
     
     # ==========================================================================
-    # PATTERN GROUP 6: A. CONTEXT section with problem description (UNIDO project docs)
+    # PATTERN GROUP 6: A. CONTEXT section with problem description
     # ==========================================================================
     
     context_section_patterns = [
@@ -956,14 +1086,13 @@ def extract_challenges(content):
         match = re.search(pattern, content, re.IGNORECASE)
         if match:
             text = match.group(1)
-            # Only include if it mentions problems/challenges/risks
             if re.search(r'problem|challeng|threat|risk|pollut|contamin|danger|hazard', text, re.IGNORECASE):
                 cleaned = clean_text(text)
                 if cleaned and len(cleaned) > 200:
                     return cleaned
     
     # ==========================================================================
-    # PATTERN GROUP 7: THE DEVELOPMENT CHALLENGE section (project reports/brochures)
+    # PATTERN GROUP 7: THE DEVELOPMENT CHALLENGE section
     # ==========================================================================
     
     dev_challenge_patterns = [
@@ -978,6 +1107,24 @@ def extract_challenges(content):
             cleaned = clean_text(text)
             if cleaned and len(cleaned) > 100:
                 return cleaned
+    
+    # ==========================================================================
+    # NEW PATTERN: "REASONS FOR UNIDO ASSISTANCE" often contains problems
+    # ==========================================================================
+    
+    reasons_patterns = [
+        r'(?:B\.?\s*)?REASONS?\s+FOR\s+UNIDO\s+ASSISTANCE\s*\n([\s\S]*?)(?=\n\s*(?:C\.?\s+|D\.?\s+|[A-Z]\.\s+THE\s+PROJECT))',
+    ]
+    
+    for pattern in reasons_patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            text = match.group(1)
+            # Only include if it contains problem-related keywords
+            if re.search(r'lack\s+of|problem|challenge|constraint|need\s+to|urgent|limited|inadequate', text, re.IGNORECASE):
+                cleaned = clean_text(text)
+                if cleaned and len(cleaned) > 200:
+                    return cleaned
     
     return None
 
@@ -1015,7 +1162,19 @@ def extract_all_challenges_sections(content):
 
 
 def process_document(filepath):
-    """Process a single document and extract required information"""
+    """
+    Process a single document and extract required information.
+    
+    Args:
+        filepath: Path object or string path to the text file
+    
+    Returns:
+        Dictionary with project_id, brief_description, challenges_problem_statements, and optional error
+    """
+    # Convert to Path if needed
+    if isinstance(filepath, str):
+        filepath = Path(filepath)
+    
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
